@@ -1,0 +1,202 @@
+So bacially we ned to open a terminal and
+then navigate to the directory of Annual Reports.
+
+
+Step 1:
+
+cd <path_to_annual_reports_folder>
+
+Step 2:
+make sure script.py, chromedriver, Input.xlsx file and PDF path_to_annual_reports_folder
+is there.
+
+Step 3:
+Type python3 script.py
+
+Chrome will open and close when all of the company names would be done.
+
+
+
+
+
+## to install pypdf2  
+1- you need to Download the file pypdf from python web 
+2- navigate the file on terminal 
+3- run the python3 setup.py 
+4- run pip3 install pyPDF2:
+  pip install tabula-py
+
+
+  ### code#####
+  # 
+# hier our code for the model
+## we will build LDA models for Content Analysis of Annual Reports in our data. We'll use the gensim implementation of LDA
+## we need to install all this libraries, ersion of the python and if using anconda or pycharm or intellij
+## I am using Python3 and intellij. you install libraries by using pip3 install name of libraries
+## NLTK requires Python versions 3.5, 3.6, 3.7, or 3.8
+## we you using python 3.8
+##  for installing nltk depend on the system you use hier ist this links https://www.nltk.org/install.html
+import nltk; nltk.download('stoptwords')
+# NLTK Stop words
+from nltk.corpus import stopwords
+stop_words = stopwords.words('english')
+stop_words.extend(['from', 'subject', 're', 'edu', 'use'])
+import re
+import numpy as np
+import pandas as pd
+from pprint import pprint
+# Importing the gensim
+## is an open-source library for unsupervised topic modeling and natural language processing, using modern statistical machine learning.
+import gensim
+import gensim.corpora as corpora
+from gensim.utils import simple_preprocess
+from gensim.models import CoherenceModel
+import spacy
+## Plotting tools
+#import pyLDAvis
+import pyLDAvis
+import pyLDAvis.gensim
+import matplotlib.pyplot as plt
+## Enabele logging for gensim-optional
+import logging
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.ERROR)
+import warnings
+warnings.filterwarnings("ignore",category=DeprecationWarning)
+
+## import the data
+import os
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import cross_val_predict
+
+path = "/Users/medouneine/Desktop/Annual_R/PDFS1"
+for filename in os.listdir(path):
+    with open(filename, 'w+') as f:
+        t = f.read()
+        t = t.split()
+
+all_texts = []
+MAX_TEXTS = 500
+current_text = 0
+for data_file in path:
+    if current_text > MAX_TEXTS:
+        break
+    current_text += 1
+
+
+# Convert the titles to lowercase
+data = 'T'
+data.lower()
+
+# Remove Emails
+## we want to remove the words and caracter or the symbol
+df = [re.sub('\S*@\S*\s?', '', sent) for sent in data]
+
+# Remove new line characters
+df= [re.sub('\s+', ' ', sent) for sent in data]
+
+# Remove distracting single quotes
+df= [re.sub("\'", "", sent) for sent in data]
+
+pprint(data[:1])
+## hier we define the word on the sentence
+def sent_to_words(words):
+    for word in words:
+        yield(gensim.utils.simple_preprocess(str(word), deacc=True))
+data_words = list(sent_to_words(df))
+print(data_words[:1])
+
+# Build the bigram and trigram models
+bigram = gensim.models.Phrases(data_words, min_count=5, threshold=100) # higher threshold fewer phrases.
+trigram = gensim.models.Phrases(bigram[data_words], threshold=100)
+
+# Faster way to get a sentence clubbed as a trigram/bigram
+bigram_mod = gensim.models.phrases.Phraser(bigram)
+trigram_mod = gensim.models.phrases.Phraser(trigram)
+
+# See trigram example
+print(trigram_mod[bigram_mod[data_words[0]]])
+
+# Define functions for stopwords, bigrams, trigrams and lemmatization
+def remove_stopwords(texts):
+    return [[word for word in simple_preprocess(str(doc)) if word not in stop_words] for doc in texts]
+
+def make_bigrams(texts):
+    return [bigram_mod[doc] for doc in texts]
+
+def make_trigrams(texts):
+    return [trigram_mod[bigram_mod[doc]] for doc in texts]
+
+def lemmatization(texts, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
+    """https://spacy.io/api/annotation"""
+    texts_out = []
+    for sent in texts:
+        doc = nlp(" ".join(sent))
+        texts_out.append([token.lemma_ for token in doc if token.pos_ in allowed_postags])
+    return texts_out
+
+# Remove Stop Words
+data_words_nostops = remove_stopwords(data_words)
+
+# Form Bigrams
+data_words_bigrams = make_bigrams(data_words_nostops)
+
+### python3 -m spacy download en######
+nlp = spacy.load('en', disable=['parser', 'ner'])
+
+# Do lemmatization keeping only noun, adj, vb, adv
+data_lemmatized = lemmatization(data_words_bigrams, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])
+
+print(data_lemmatized[:1])
+
+# Create Dictionary
+id2word = corpora.Dictionary(data_lemmatized)
+
+# Create Corpus
+texts = data_lemmatized
+
+# Term Document Frequency
+### congeer the all word in one text
+text = []
+for one_text in texts:
+    text.extend(one_text)
+corpus = [id2word.doc2bow(text)]
+# corpus = [id2word.doc2bow(text) for text in texts]
+
+# View
+print(corpus[:1])
+#print(id2word[0])
+
+# Human readable format of corpus (term-frequency)
+print([[(id2word[id], freq) for id, freq in cp] for cp in corpus[:1]])
+
+# Build LDA model
+lda_model = gensim.models.ldamodel.LdaModel(corpus = corpus,
+                                            id2word=id2word,
+                                            num_topics=20,
+                                            random_state=100,
+                                            update_every=1,
+                                            chunksize=50,
+                                            passes=10,
+                                            alpha='auto',
+                                            per_word_topics=False)
+
+# Print the Keyword in the 10 topics
+pprint(lda_model.print_topics(20))
+doc_lda = lda_model[corpus]
+print(doc_lda)
+
+# Compute Perplexity
+print('\nPerplexity: ', lda_model.log_perplexity(corpus))  # a measure of how good the model is. lower the better.
+
+# Compute Coherence Score
+coherence_model_lda = CoherenceModel(model=lda_model, texts=data_lemmatized, dictionary=id2word, coherence='c_v')
+coherence_lda = coherence_model_lda.get_coherence()
+print('\nCoherence Score: ', coherence_lda)
+
+# Visualize the topics
+pyLDAvis.enable_notebook()
+vis = pyLDAvis.gensim.prepare(lda_model, corpus, id2word)
+print(plt.show(vis))
